@@ -14,11 +14,12 @@ pub struct Player {
     player_role: PlayerRole,
     user: &'static User,
     game_item: &'static Vec<&'static dyn GameItem>,
+    chip: u16,// 筹码数量
 }
 
 impl Player {
-    pub fn new(player_role: PlayerRole, user: &'static User, game_item: &'static Vec<&'static dyn GameItem>) -> Self{
-        Player {player_role, user, game_item}
+    pub fn new(player_role: PlayerRole, user: &'static User, game_item: &'static Vec<&'static dyn GameItem>, chip: u16) -> Self{
+        Player {player_role, user, game_item, chip}
     }
 
     pub fn update_player_role(&mut self, new_role: PlayerRole){
