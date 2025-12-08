@@ -1,2 +1,2 @@
-pub mod event_delegate;
+pub mod delegate;
 pub mod event_bus;
