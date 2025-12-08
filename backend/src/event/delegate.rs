@@ -8,7 +8,7 @@ pub struct Delegate{
 }
 
 impl Delegate{
-    pub fn new()->Self{
+    pub fn new() -> Self{
         Delegate{listeners:Vec::new()}
     }
 
@@ -17,11 +17,11 @@ impl Delegate{
         self.listeners.push(listener);
     }
 
-    pub fn trigger_event(&mut self, event: Arc<dyn Any + Send + Sync>) ->() {
+    pub fn trigger_event(&mut self, data: Arc<dyn Any + Send + Sync>) ->() {
         for listener_arc_mutex in &mut self.listeners {
             if let Ok(mut listener) = listener_arc_mutex.lock() {
                 // 克隆 Arc，将克隆的所有权副本传递给闭包
-                listener(Arc::clone(&event));
+                listener(Arc::clone(&data));
             }
         }
     }
