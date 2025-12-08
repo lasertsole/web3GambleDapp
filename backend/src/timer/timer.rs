@@ -1,6 +1,7 @@
 use std::time::{Duration, SystemTime};
 use std::fmt;
 
+#[derive(Debug)]
 pub enum CBTimesMethod{
     ONCE,
     Multi
@@ -66,3 +67,4 @@ impl fmt::Debug for Timer {
             .finish() // 结束构建并返回 Result
     }
 }
+
