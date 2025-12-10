@@ -6,8 +6,7 @@ use std::any::Any;
 use std::collections::HashMap;
 use crate::game::player::Player;
 use crate::game::game_rule::GameRule;
-
-
+use crate::timer::timer::{CBTimesMethod, Timer};
 
 ///游戏状态
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -27,6 +26,8 @@ pub struct Game {
     game_rule: &'static mut GameRule,
     game_state: GameState,
     game_context: HashMap<String, Box<dyn Any + Send + Sync>>,
+    game_timer_for_whole: Timer,
+    game_timer_for_players: Timer,
 }
 
 impl Game {
@@ -42,7 +43,17 @@ impl Game {
             game_item,
             game_rule,
             game_state,
-            game_context
+            game_context,
+            game_timer_for_whole: Timer::new(
+                game_rule.game_timer_duration,
+                &*game_rule.game_timeout,
+                game_rule.game_timer_times_method,
+            ),
+            game_timer_for_players: Timer::new(
+                game_rule.players_timer_duration,
+                &*game_rule.players_timeout,
+                game_rule.players_timer_times_method,
+            )
         }
     }
 
@@ -72,6 +83,8 @@ impl Game {
     pub fn game_start(&mut self) -> () {
         assert_eq!(self.game_state, GameState::NotStarted, "game state isn't NotStarted");
 
+        self.game_timer_for_whole.set_is_running(true);
+        self.game_timer_for_players.set_is_running(true);
         self.game_state = GameState::InProgress;
         (self.game_rule.game_start) (
             &self.current_players,
@@ -83,8 +96,10 @@ impl Game {
     pub fn game_pause(&mut self) -> () {
         assert_eq!(self.game_state, GameState::InProgress, "game state isn't InProgress");
 
+        self.game_timer_for_whole.set_is_running(false);
+        self.game_timer_for_players.set_is_running(false);
         self.game_state = GameState::Paused;
-        (self.game_rule.game_start) (
+        (self.game_rule.game_pause) (
             &self.current_players,
             &self.game_item,
             &self.game_context
@@ -94,6 +109,8 @@ impl Game {
     pub fn game_resume(&mut self) -> () {
         assert_eq!(self.game_state, GameState::Paused, "game state isn't Paused");
 
+        self.game_timer_for_whole.set_is_running(true);
+        self.game_timer_for_players.set_is_running(true);
         self.game_state = GameState::InProgress;
         (self.game_rule.game_resume) (
             &self.current_players,
@@ -115,6 +132,8 @@ impl Game {
     pub fn game_finish(&mut self) -> () {
         assert_eq!(self.game_state, GameState::InProgress, "game state isn't InProgress");
 
+        self.game_timer_for_whole.set_is_running(false);
+        self.game_timer_for_players.set_is_running(false);
         self.game_state = GameState::Finished;
         (self.game_rule.game_finish) (
             &self.current_players,

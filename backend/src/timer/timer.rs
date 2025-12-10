@@ -9,20 +9,24 @@ pub enum CBTimesMethod{
 
 pub struct Timer {
     now: SystemTime,
-    cb_last_time_step: SystemTime,
+    is_running: bool,
+    cb_last_step_time: SystemTime,
     cb_duration: Duration,
-    cb: Box<dyn FnMut()->()>,
-    cb_times_method: CBTimesMethod
+    cb: &'static dyn FnMut()->(),
+    cb_times_method: CBTimesMethod,
 }
 
 impl Timer {
-    fn new(now: SystemTime, cb_duration:Duration, cb: Box<dyn FnMut()->()>, cb_times_method: CBTimesMethod)-> Self {
+    pub fn new(cb_duration:Duration, cb: &'static dyn FnMut()->(), cb_times_method: CBTimesMethod)-> Self {
         // SystemTime 实现了 Copy, Timer 的 cb_last_time 和 now是两个独立的副本
-        Timer{now, cb_last_time_step: now, cb_duration, cb, cb_times_method}
+        let now:SystemTime = SystemTime::now();
+        Timer{now, isRunning: false, cb_last_step_time: now, cb_duration, cb, cb_times_method}
     }
 
     // 区块链上无法设置 定时触发器，需要用户请求触发 或 时间预言机触发
-    fn update_timer(&mut self) ->() {
+    pub fn update_timer(&mut self) ->() {
+        if !self.is_running {return;}
+
         let now:SystemTime = SystemTime::now();
         let duration:Duration = now.duration_since(self.now).unwrap();
 
@@ -43,15 +47,23 @@ impl Timer {
             }
 
             //更新最新的触发时间步
-            self.cb_last_time_step += self.cb_duration * cb_times;
+            self.cb_last_step_time += self.cb_duration * cb_times;
         }
 
         // 更新当前时间
         self.now = now;
     }
 
-    fn get_now(&self) -> SystemTime {
+    pub fn get_now(&self) -> SystemTime {
         self.now
+    }
+
+    pub fn get_is_running(&self) -> bool{
+        self.is_running
+    }
+
+    pub fn set_is_running(&mut self, is_running: bool) {
+        self.is_running = is_running;
     }
 }
 
@@ -60,9 +72,10 @@ impl fmt::Debug for Timer {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("Timer")
             .field("now", &self.now)
-            .field("cb_last_time_step", &self.cb_last_time_step)
+            .field("is_running", &self.is_running)
+            .field("cb_last_step_time", &self.cb_last_step_time)
             .field("cb_duration", &self.cb_duration)
-            .field("cb", &"Box<dyn FnMut()->()>")
+            .field("cb", &"[FnMut cb]")
             .field("cb_times_method", &self.cb_times_method)
             .finish() // 结束构建并返回 Result
     }
