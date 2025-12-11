@@ -1,53 +1,86 @@
+use std::fmt;
 use std::any::Any;
+use std::time::Duration;
 use std::collections::HashMap;
+use std::sync::{Arc, Mutex};
 use crate::game::game_item::GameItem;
 use crate::game::game::GameState;
 use crate::game::player::Player;
-use std::fmt;
-use std::time::Duration;
 use crate::timer::timer::CBTimesMethod;
-// 引入 fmt 模块
+
+
+pub type CompareCB = Arc<dyn Fn(
+    &Vec<&dyn GameItem>,
+    &Vec<&dyn GameItem>,
+    Arc<HashMap<String, Arc<dyn Any + Send + Sync>>>
+) -> bool>;
+
+pub type GameCB = Arc<dyn Fn(
+    Arc<Mutex<Vec<Arc<Player>>>>,
+    Arc<Mutex<Vec<Arc<dyn GameItem>>>>,
+    Arc<Mutex<HashMap<String, Arc<dyn Any + Send + Sync>>>>
+) -> ()>;
+
+pub type PlayersCB = Arc<dyn Fn(
+    Arc<Mutex<Vec<Arc<Player>>>>,
+    Arc<Mutex<Vec<Arc<Player>>>>,
+    Arc<Mutex<Vec<Arc<dyn GameItem>>>>, GameState, Arc<Mutex<HashMap<String, Arc<dyn Any + Send + Sync>>>>
+)->()>;
+
+/// 游戏规则错误类型
+pub enum GameRuleError {
+    TimerConfigMismatch,
+}
 
 /// 游戏规则
 pub struct GameRule {
-    pub compare:Box<dyn Fn(&Vec<&dyn GameItem>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>) -> bool>,
-    pub allocate:Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>) -> ()>,
-    pub game_start:Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub game_progress:Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub game_pause:Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub game_resume:Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub game_finish:Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub game_wait_start:Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub game_timeout: Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub game_timer_duration: Duration,
-    pub game_timer_times_method: CBTimesMethod,
-    pub players_join: Box<dyn Fn(&Vec<&Player>, &Vec<&Player>, &Vec<&dyn GameItem>, GameState, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub players_leave: Box<dyn Fn(&Vec<&Player>, &Vec<&Player>, &Vec<&dyn GameItem>, GameState, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub players_timeout: Box<dyn Fn(&Vec<&Player>, &Vec<&Player>, &Vec<&dyn GameItem>, GameState, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub players_timer_duration: Duration,
-    pub players_timer_times_method: CBTimesMethod,
+    pub compare: CompareCB,
+    pub allocate: GameCB,
+    pub game_start: GameCB,
+    pub game_progress: GameCB,
+    pub game_pause: GameCB,
+    pub game_resume: GameCB,
+    pub game_finish: GameCB,
+    pub game_wait_start: GameCB,
+    pub game_timeout: GameCB,
+    pub game_timer_duration: Option<Duration>,
+    pub game_timer_times_method: Option<CBTimesMethod>,
+    pub players_join: PlayersCB,
+    pub players_leave: PlayersCB,
+    pub players_timeout: PlayersCB,
+    pub players_timer_duration: Option<Duration>,
+    pub players_timer_times_method: Option<CBTimesMethod>,
 }
 
 impl GameRule {
     pub fn new(
-        compare: Box<dyn Fn(&Vec<&dyn GameItem>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>) -> bool>,
-        allocate: Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>) -> ()>,
-        game_start: Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-        game_progress: Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-        game_pause: Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-        game_resume: Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-        game_finish: Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-        game_wait_start: Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-        game_timeout: Box<dyn Fn(&Vec<&Player>, &Vec<&dyn GameItem>, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-        game_timer_duration: Duration,
-        game_timer_times_method: CBTimesMethod,
-        players_join: Box<dyn Fn(&Vec<&Player>, &Vec<&Player>, &Vec<&dyn GameItem>, GameState, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-        players_leave: Box<dyn Fn(&Vec<&Player>, &Vec<&Player>, &Vec<&dyn GameItem>, GameState, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-        players_timeout: Box<dyn Fn(&Vec<&Player>, &Vec<&Player>, &Vec<&dyn GameItem>, GameState, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-        players_timer_duration: Duration,
-        players_timer_times_method: CBTimesMethod,
-    ) -> Self{
-        GameRule {
+        compare: CompareCB,
+        allocate: GameCB,
+        game_start: GameCB,
+        game_progress: GameCB,
+        game_pause: GameCB,
+        game_resume: GameCB,
+        game_finish: GameCB,
+        game_wait_start: GameCB,
+        game_timeout: GameCB,
+        game_timer_duration: Option<Duration>,
+        game_timer_times_method: Option<CBTimesMethod>,
+        players_join: PlayersCB,
+        players_leave: PlayersCB,
+        players_timeout: PlayersCB,
+        players_timer_duration: Option<Duration>,
+        players_timer_times_method: Option<CBTimesMethod>,
+    ) -> Result<Self, GameRuleError> {
+        // game_timer前缀属性必须同时为空或同时不为空
+        if game_timer_duration.is_some() != game_timer_times_method.is_some() {
+            return Err(GameRuleError::TimerConfigMismatch);
+        }
+        // players_timer前缀属性必须同时为空或同时不为空
+        if players_timer_duration.is_some() != players_timer_times_method.is_some() {
+            return Err(GameRuleError::TimerConfigMismatch);
+        }
+
+        Ok(GameRule {
             compare,
             allocate,
             game_start,
@@ -64,7 +97,7 @@ impl GameRule {
             players_timeout,
             players_timer_duration,
             players_timer_times_method,
-        }
+        })
     }
 }
 
@@ -72,20 +105,20 @@ impl GameRule {
 impl fmt::Debug for GameRule {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         f.debug_struct("GameRule")
-            .field("compare", &"Box[Fn compare]")
-            .field("allocate", &"Box[Fn allocate]")
-            .field("game_start", &"Box[Fn game_start]")
-            .field("game_progress", &"Box[Fn game_progress]")
-            .field("game_pause", &"Box[Fn game_pause]")
-            .field("game_resume", &"Box[Fn game_resume]")
-            .field("game_finish", &"Box[Fn game_finish]")
-            .field("game_wait_start", &"Box[Fn game_wait_start]")
-            .field("game_timeout", &"Box[Fn game_timeout]")
+            .field("compare", &"Arc[Fn compare]")
+            .field("allocate", &"Arc[Fn allocate]")
+            .field("game_start", &"Arc[Fn game_start]")
+            .field("game_progress", &"Arc[Fn game_progress]")
+            .field("game_pause", &"Arc[Fn game_pause]")
+            .field("game_resume", &"Arc[Fn game_resume]")
+            .field("game_finish", &"Arc[Fn game_finish]")
+            .field("game_wait_start", &"Arc[Fn game_wait_start]")
+            .field("game_timeout", &"Arc[Fn game_timeout]")
             .field("game_timer_duration", &self.game_timer_duration)
             .field("game_timer_times_method", &self.game_timer_times_method)
-            .field("players_join", &"Box[Fn players_join]")
-            .field("players_leave", &"Box[Fn players_leave]")
-            .field("players_timeout", &"Box[Fn players_timeout]")
+            .field("players_join", &"Arc[Fn players_join]")
+            .field("players_leave", &"Arc[Fn players_leave]")
+            .field("players_timeout", &"Arc[Fn players_timeout]")
             .field("players_timer_duration", &self.players_timer_duration)
             .field("players_timer_times_method", &self.players_timer_times_method)
             .finish()
