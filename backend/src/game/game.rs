@@ -23,6 +23,7 @@ struct Tuple(
     pub Arc<Mutex<Vec<Arc<Player>>>>,
     pub Arc<Mutex<Vec<Arc<Player>>>>,
     pub Arc<Mutex<Vec<Arc<dyn GameItem>>>>,
+    pub Arc<Mutex<GameState>>,
     pub Arc<Mutex<HashMap<String, Arc<dyn Any + Send + Sync>>>>,
     pub GameCB,
     pub PlayersCB,
@@ -35,8 +36,9 @@ impl fmt::Debug for Tuple{
         .field("1", &self.1)
         .field("2", &self.2)
         .field("3", &self.3)
-        .field("4", &"Arc[Fn]")
+        .field("4", &self.3)
         .field("5", &"Arc[Fn]")
+        .field("6", &"Arc[Fn]")
         .finish() // 结束构建并返回 Result
     }
 }
@@ -48,7 +50,7 @@ pub struct Game {
     current_action_players : Arc<Mutex<Vec<Arc<Player>>>>,
     game_item: Arc<Mutex<Vec<Arc<dyn GameItem>>>>,
     game_rule: &'static mut GameRule,
-    game_state: GameState,
+    game_state: Arc<Mutex<GameState>>,
     game_context: Arc<Mutex<HashMap<String, Arc<dyn Any + Send + Sync>>>>,
     game_timer_for_whole: Mutex<Option<Timer<Tuple>>>,
     game_timer_for_players: Mutex<Option<Timer<Tuple>>>,
@@ -58,14 +60,13 @@ impl Game {
     pub fn new(
         game_item: Arc<Mutex<Vec<Arc<dyn GameItem>>>>,
         game_rule: &'static mut GameRule,
-        game_state: GameState,
     ) -> Self {
         Game {
             current_players:Arc::new(Mutex::new(Vec::new())),
             current_action_players:Arc::new(Mutex::new(Vec::new())),
             game_item,
             game_rule,
-            game_state,
+            game_state: Arc::new(Mutex::new(GameState::NotStarted)),
             game_context:Arc::new(Mutex::new(HashMap::new())),
             game_timer_for_whole: Mutex::new(None),
             game_timer_for_players: Mutex::new(None),
@@ -78,6 +79,7 @@ impl Game {
                 self.current_players.clone(),
                 self.current_players.clone(),
                 self.game_item.clone(),
+                self.game_state.clone(),
                 self.game_context.clone(),
                 self.game_rule.game_timeout.clone(),
                 self.game_rule.players_timeout.clone()
@@ -91,8 +93,8 @@ impl Game {
                 if let Some(tuple) = option_tuple {
                     let players_clone = tuple.0.clone();
                     let game_items_clone = tuple.2.clone();
-                    let context_clone = tuple.3.clone();
-                    let game_timeout = tuple.4.clone();
+                    let context_clone = tuple.4.clone();
+                    let game_timeout = tuple.5.clone();
                     (game_timeout)(players_clone, game_items_clone, context_clone)
                 }
             });
@@ -109,16 +111,16 @@ impl Game {
 
         if let Some(cb_times_method) = self.game_rule.players_timer_times_method{
 
-            let game_state = self.game_state;
             let player_timeout:Box<dyn FnMut(Option<Arc<Tuple>>)->()>
                 = Box::new(|option_tuple: Option<Arc<Tuple>>| {
                 if let Some(tuple) = option_tuple {
                     let players_clone = tuple.0.clone();
                     let action_players_clone = tuple.1.clone();
                     let game_items_clone = tuple.2.clone();
-                    let context_clone = tuple.3.clone();
-                    let player_timeout = tuple.5.clone();
-                    // (player_timeout)(players_clone, action_players_clone, game_items_clone, game_state, context_clone)
+                    let game_state = tuple.3.clone();
+                    let context_clone = tuple.4.clone();
+                    let player_timeout = tuple.6.clone();
+                    (player_timeout)(players_clone, action_players_clone, game_items_clone, game_state, context_clone)
                 }
             });
 
@@ -167,7 +169,7 @@ impl Game {
     }
 
     pub fn game_start(&mut self) -> () {
-        assert_eq!(self.game_state, GameState::NotStarted, "game state isn't NotStarted");
+        assert_eq!(*self.game_state.lock().unwrap(), GameState::NotStarted, "game state isn't NotStarted");
 
         if let Some(mut item) = self.game_timer_for_whole.lock().unwrap().take() {
             item.set_is_running(true)
@@ -176,7 +178,7 @@ impl Game {
             item.set_is_running(true)
         };
 
-        self.game_state = GameState::InProgress;
+        *self.game_state.lock().unwrap() = GameState::InProgress;
         (self.game_rule.game_start) (
             self.current_players.clone(),
             self.game_item.clone(),
@@ -185,7 +187,7 @@ impl Game {
     }
 
     pub fn game_pause(&mut self) -> () {
-        assert_eq!(self.game_state, GameState::InProgress, "game state isn't InProgress");
+        assert_eq!(*self.game_state.lock().unwrap(), GameState::InProgress, "game state isn't InProgress");
 
         if let Some(mut item) = self.game_timer_for_whole.lock().unwrap().take() {
             item.set_is_running(false);
@@ -194,7 +196,7 @@ impl Game {
             item.set_is_running(false);
         };
 
-        self.game_state = GameState::Paused;
+        *self.game_state.lock().unwrap() = GameState::Paused;
         (self.game_rule.game_pause) (
             self.current_players.clone(),
             self.game_item.clone(),
@@ -203,7 +205,7 @@ impl Game {
     }
 
     pub fn game_resume(&mut self) -> () {
-        assert_eq!(self.game_state, GameState::Paused, "game state isn't Paused");
+        assert_eq!(*self.game_state.lock().unwrap(), GameState::Paused, "game state isn't Paused");
 
         if let Some(mut item) = self.game_timer_for_whole.lock().unwrap().take() {
             item.set_is_running(true);
@@ -212,7 +214,7 @@ impl Game {
             item.set_is_running(true);
         };
 
-        self.game_state = GameState::InProgress;
+        *self.game_state.lock().unwrap() = GameState::InProgress;
         (self.game_rule.game_resume) (
             self.current_players.clone(),
             self.game_item.clone(),
@@ -221,7 +223,7 @@ impl Game {
     }
 
     pub fn game_progress(&mut self) -> () {
-        assert_eq!(self.game_state, GameState::InProgress, "game state isn't InProgress");
+        assert_eq!(*self.game_state.lock().unwrap(), GameState::InProgress, "game state isn't InProgress");
 
         (self.game_rule.game_progress) (
             self.current_players.clone(),
@@ -231,7 +233,7 @@ impl Game {
     }
 
     pub fn game_finish(&mut self) -> () {
-        assert_eq!(self.game_state, GameState::InProgress, "game state isn't InProgress");
+        assert_eq!(*self.game_state.lock().unwrap(), GameState::InProgress, "game state isn't InProgress");
 
         if let Some(mut item) = self.game_timer_for_whole.lock().unwrap().take() {
             item.set_is_running(false);
@@ -240,7 +242,7 @@ impl Game {
             item.set_is_running(false);
         };
 
-        self.game_state = GameState::Finished;
+        *self.game_state.lock().unwrap() = GameState::Finished;
         (self.game_rule.game_finish) (
             self.current_players.clone(),
             self.game_item.clone(),
@@ -249,9 +251,9 @@ impl Game {
     }
 
     pub fn game_wait_start(&mut self) -> () {
-        assert_eq!(self.game_state, GameState::Finished, "game state isn't Finished");
+        assert_eq!(*self.game_state.lock().unwrap(), GameState::Finished, "game state isn't Finished");
 
-        self.game_state = GameState::NotStarted;
+        *self.game_state.lock().unwrap() = GameState::NotStarted;
         (self.game_rule.game_wait_start) (
             self.current_players.clone(),
             self.game_item.clone(),
