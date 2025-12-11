@@ -73,58 +73,66 @@ impl Game {
     }
 
     fn init(&mut self) {
-        let self_arc:Arc<&mut Game> = Arc::new(self);
         let tuple:Arc<Tuple> = Arc::new(
             Tuple(
-                self_arc.current_players.clone(),
-                self_arc.current_players.clone(),
-                self_arc.game_item.clone(),
-                self_arc.game_context.clone(),
-                self_arc.game_rule.game_timeout.clone(),
-                self_arc.game_rule.players_timeout.clone()
+                self.current_players.clone(),
+                self.current_players.clone(),
+                self.game_item.clone(),
+                self.game_context.clone(),
+                self.game_rule.game_timeout.clone(),
+                self.game_rule.players_timeout.clone()
             )
         );
         let tuple_clone = tuple.clone();
 
-        // if let Some(cb_times_method) = self_arc.game_rule.game_timer_times_method{
-        //     let game_timeout:Box<dyn FnMut(Option<Arc<Tuple>>)->()>
-        //         = Box::new(|option_tuple: Option<Arc<Tuple>>| {
-        //         if let Some(tuple) = option_tuple {
-        //             let players_clone = tuple.0.clone().lock().unwrap();
-        //             let game_items_clone = tuple.2.clone().lock().unwrap();
-        //             let context_clone = tuple.3.clone().lock().unwrap();
-        //             let game_timeout = tuple.4.clone();
-        //             (game_timeout)(players_clone, game_items_clone, context_clone)
-        //         }
-        //     });
-        //
-        //     self_arc.set_game_timer_for_whole(Some(Timer::<Tuple>::new(
-        //         self_arc.game_rule.game_timer_duration,
-        //         Some(tuple),
-        //         game_timeout,
-        //         cb_times_method,
-        //     )));
-        // }
+        if let Some(cb_times_method) = self.game_rule.game_timer_times_method{
+            let game_timeout:Box<dyn FnMut(Option<Arc<Tuple>>)->()>
+                = Box::new(|option_tuple: Option<Arc<Tuple>>| {
+                if let Some(tuple) = option_tuple {
+                    let players_clone = tuple.0.clone();
+                    let game_items_clone = tuple.2.clone();
+                    let context_clone = tuple.3.clone();
+                    let game_timeout = tuple.4.clone();
+                    (game_timeout)(players_clone, game_items_clone, context_clone)
+                }
+            });
 
-        // if let Some(cb_times_method) = self.game_rule.players_timer_times_method{
-        //     let player_timeout:Box<dyn FnMut(Option<Arc<Tuple>>)->()>
-        //         = Box::new(|option_tuple: Option<Arc<Tuple>>| {
-        //         if let Some(tuple) = option_tuple {
-        //             let players_clone = tuple.0.clone();
-        //             let action_players_clone = tuple.1.clone();
-        //             let game_items_clone = tuple.2.clone();
-        //             let context_clone = tuple.3.clone();
-        //             (tuple.5.clone())(action_players_clone, players_clone, game_items_clone, self.game_state, context_clone)
-        //         }
-        //     });
-        //
-        //     self.set_game_timer_for_players(Some(Timer::new(
-        //         self.game_rule.game_timer_duration,
-        //         Some(tuple_clone),
-        //         Box::new(player_timeout),
-        //         cb_times_method,
-        //     )));
-        // }
+            self.set_game_timer_for_whole(Mutex::new(
+                Some(Timer::<Tuple>::new(
+                    self.game_rule.game_timer_duration,
+                    Some(tuple),
+                    game_timeout,
+                    cb_times_method,
+                ))
+            ));
+        }
+
+        if let Some(cb_times_method) = self.game_rule.players_timer_times_method{
+
+            let game_state = self.game_state;
+            let player_timeout:Box<dyn FnMut(Option<Arc<Tuple>>)->()>
+                = Box::new(|option_tuple: Option<Arc<Tuple>>| {
+                if let Some(tuple) = option_tuple {
+                    let players_clone = tuple.0.clone();
+                    let action_players_clone = tuple.1.clone();
+                    let game_items_clone = tuple.2.clone();
+                    let context_clone = tuple.3.clone();
+                    let player_timeout = tuple.5.clone();
+                    // (player_timeout)(players_clone, action_players_clone, game_items_clone, game_state, context_clone)
+                }
+            });
+
+            self.set_game_timer_for_players(
+                Mutex::new(
+                    Some(Timer::new(
+                        self.game_rule.game_timer_duration,
+                        Some(tuple_clone),
+                        Box::new(player_timeout),
+                        cb_times_method,
+                    ))
+                )
+            );
+        }
     }
 
     fn set_game_timer_for_whole(&mut self, option_timer:Mutex<Option<Timer<Tuple>>>)->(){
