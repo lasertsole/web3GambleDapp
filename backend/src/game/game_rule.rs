@@ -24,7 +24,7 @@ pub type GameCB = Arc<dyn Fn(
 pub type PlayersCB = Arc<dyn Fn(
     Arc<Mutex<Vec<Arc<Player>>>>,
     Arc<Mutex<Vec<Arc<Player>>>>,
-    Arc<Mutex<Vec<Arc<dyn GameItem>>>>, GameState, Arc<Mutex<HashMap<String, Arc<dyn Any + Send + Sync>>>>
+    Arc<Mutex<Vec<Arc<dyn GameItem>>>>, Arc<Mutex<GameState>>, Arc<Mutex<HashMap<String, Arc<dyn Any + Send + Sync>>>>
 )->()>;
 
 /// 游戏规则错误类型
