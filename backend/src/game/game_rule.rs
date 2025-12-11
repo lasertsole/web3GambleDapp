@@ -23,7 +23,7 @@ pub struct GameRule {
     pub game_timer_times_method: CBTimesMethod,
     pub players_join: Box<dyn Fn(&Vec<&Player>, &Vec<&Player>, &Vec<&dyn GameItem>, GameState, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
     pub players_leave: Box<dyn Fn(&Vec<&Player>, &Vec<&Player>, &Vec<&dyn GameItem>, GameState, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
-    pub players_timeout: Box<dyn Fn(&Vec<&Player>, &Vec<&Player>, &Vec<&dyn GameItem>, GameState, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>
+    pub players_timeout: Box<dyn Fn(&Vec<&Player>, &Vec<&Player>, &Vec<&dyn GameItem>, GameState, &HashMap<String, Box<dyn Any + Send + Sync>>)->()>,
     pub players_timer_duration: Duration,
     pub players_timer_times_method: CBTimesMethod,
 }
@@ -80,7 +80,7 @@ impl fmt::Debug for GameRule {
             .field("game_resume", &"Box[Fn game_resume]")
             .field("game_finish", &"Box[Fn game_finish]")
             .field("game_wait_start", &"Box[Fn game_wait_start]")
-            .field("game_timeout", &self.game_timeout)
+            .field("game_timeout", &"Box[Fn game_timeout]")
             .field("game_timer_duration", &self.game_timer_duration)
             .field("game_timer_times_method", &self.game_timer_times_method)
             .field("players_join", &"Box[Fn players_join]")
