@@ -12,15 +12,15 @@ pub struct Timer {
     is_running: bool,
     cb_last_step_time: SystemTime,
     cb_duration: Duration,
-    cb: &'static dyn FnMut()->(),
+    cb: &'static mut dyn FnMut()->(),
     cb_times_method: CBTimesMethod,
 }
 
 impl Timer {
-    pub fn new(cb_duration:Duration, cb: &'static dyn FnMut()->(), cb_times_method: CBTimesMethod)-> Self {
+    pub fn new(cb_duration:Duration, cb: &'static mut dyn FnMut()->(), cb_times_method: CBTimesMethod)-> Self {
         // SystemTime 实现了 Copy, Timer 的 cb_last_time 和 now是两个独立的副本
         let now:SystemTime = SystemTime::now();
-        Timer{now, isRunning: false, cb_last_step_time: now, cb_duration, cb, cb_times_method}
+        Timer{now, is_running: false, cb_last_step_time: now, cb_duration, cb, cb_times_method}
     }
 
     // 区块链上无法设置 定时触发器，需要用户请求触发 或 时间预言机触发
