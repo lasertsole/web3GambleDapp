@@ -99,6 +99,7 @@ impl<T> fmt::Debug for Timer<T> where T : Any + fmt::Debug {
             .field("cb_duration", &self.cb_duration)
             .field("cb", &"Box[FnMut cb]")
             .field("cb_times_method", &self.cb_times_method)
-            .finish() // 结束构建并返回 Result
+            .finish()
     }
 }
+
