@@ -39,7 +39,7 @@ impl fmt::Debug for Tuple{
         .field("4", &self.3)
         .field("5", &"Arc[Fn]")
         .field("6", &"Arc[Fn]")
-        .finish() // 结束构建并返回 Result
+        .finish()
     }
 }
 
@@ -265,20 +265,17 @@ impl Game {
 // 分别实现 Hash、PartialEq、Eq的trait，使dyn GameRule可比较哈希值，从而可以插入HashSet
 impl Hash for Game {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        // 哈希参与者
         self.current_players.lock().unwrap().hash(state);
-        // 哈希 game_rule 指针的地址
         std::ptr::hash(self.game_rule as *const _, state);
     }
 }
 
 impl PartialEq for Game {
     fn eq(&self, other: &Self) -> bool {
-        // 比较参与者列表
         *self.current_players.lock().unwrap() == *other.current_players.lock().unwrap() &&
-            // 比较 game_rule 指针的地址，以判断是否是同一个实例
             std::ptr::eq(self.game_rule as *const _, other.game_rule as *const _)
     }
 }
 
 impl Eq for Game {}
+
