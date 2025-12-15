@@ -1,4 +1,4 @@
-use std::fmt::Debug;
+use std::fmt::{write, Debug};
 use crate::game::game_item::GameItem;
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -17,6 +17,17 @@ pub enum GameState{
     InProgress,
     Paused,
     Finished
+}
+
+impl fmt::Display for GameState {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            GameState::NotStarted => write!(f, "NotStarted"),
+            GameState::InProgress => write!(f, "InProgress"),
+            GameState::Paused => write!(f, "Paused"),
+            GameState::Finished=>write!(f, "Finished"),
+        }
+    }
 }
 
 struct Tuple(
@@ -39,7 +50,7 @@ impl fmt::Debug for Tuple{
         .field("4", &self.3)
         .field("5", &"Arc[Fn]")
         .field("6", &"Arc[Fn]")
-        .finish()
+        .finish() // 结束构建并返回 Result
     }
 }
 
@@ -145,6 +156,57 @@ impl Game {
         self.game_timer_for_players = option_timer;
     }
 
+    fn set_all_timer_is_running(&mut self, is_running: bool) -> () {
+        match self.game_timer_for_whole.lock() {
+            Ok(mut guard) => {
+                if let Some(mut item) = guard.take() {
+                    item.set_is_running(is_running);
+                };
+            },
+            Err(poisoned) => {
+                print!("The lock is poisoned! Attempting to unpoison (or recover) the data and resume operations.");
+                if let Some(mut item) = poisoned.into_inner().take(){
+                    item.set_is_running(is_running);
+                };
+            }
+        }
+
+        match self.game_timer_for_players.lock() {
+            Ok(mut guard) => {
+                if let Some(mut item) = guard.take() {
+                    item.set_is_running(is_running);
+                };
+            },
+            Err(poisoned) => {
+                print!("The lock is poisoned! Attempting to unpoison (or recover) the data and resume operations.");
+                if let Some(mut item) = poisoned.into_inner().take(){
+                    item.set_is_running(is_running);
+                };
+            }
+        }
+    }
+
+    fn  translate_game_state(&self, ori_game_state:GameState, tar_game_state: Option<GameState>) -> () {
+        let error_message = "game state isn't ".to_owned() + ori_game_state.to_string().as_str();
+
+        match self.game_state.lock() {
+            Ok(mut guard) => {
+                assert_eq!(*guard, ori_game_state, "{}", error_message);
+                if let Some(tar_game_state) = tar_game_state{
+                    *guard = tar_game_state;
+                }
+            },
+            Err(poisoned) => {
+                print!("The lock is poisoned! Attempting to unpoison (or recover) the data and resume operations.");
+                let mut guard = poisoned.into_inner();
+                assert_eq!(*guard, ori_game_state, "{}", error_message);
+                if let Some(tar_game_state) = tar_game_state{
+                    *guard = tar_game_state;
+                }
+            },
+        }
+    }
+
     pub fn player_join(&mut self, join_players: Vec<Arc<Player>>) -> () {
         self.current_players.lock().unwrap().extend(join_players.clone());
         (self.game_rule.players_join) (
@@ -158,7 +220,17 @@ impl Game {
 
     pub fn player_leave(&mut self, leave_players: Vec<Arc<Player>>) -> (){
         let leave_players_set: HashSet<_> = leave_players.clone().into_iter().collect();
-        self.current_players.lock().unwrap().retain(|element| !leave_players_set.contains(element));
+
+        match self.current_players.lock() {
+            Ok(mut guard) => {
+                guard.retain(|element| !leave_players_set.contains(element));
+            },
+            Err(poisoned) => {
+                print!("The lock is poisoned! Attempting to unpoison (or recover) the data and resume operations.");
+                poisoned.into_inner().retain(|element| !leave_players_set.contains(element));
+            }
+        }
+
         (self.game_rule.players_leave) (
             Arc::new(Mutex::new(leave_players)),
             self.current_players.clone(),
@@ -169,16 +241,10 @@ impl Game {
     }
 
     pub fn game_start(&mut self) -> () {
-        assert_eq!(*self.game_state.lock().unwrap(), GameState::NotStarted, "game state isn't NotStarted");
+        self.translate_game_state(GameState::NotStarted, Some(GameState::InProgress));
 
-        if let Some(mut item) = self.game_timer_for_whole.lock().unwrap().take() {
-            item.set_is_running(true)
-        };
-        if let Some(mut item) = self.game_timer_for_players.lock().unwrap().take() {
-            item.set_is_running(true)
-        };
+        self.set_all_timer_is_running(true);
 
-        *self.game_state.lock().unwrap() = GameState::InProgress;
         (self.game_rule.game_start) (
             self.current_players.clone(),
             self.game_item.clone(),
@@ -187,16 +253,10 @@ impl Game {
     }
 
     pub fn game_pause(&mut self) -> () {
-        assert_eq!(*self.game_state.lock().unwrap(), GameState::InProgress, "game state isn't InProgress");
+        self.translate_game_state(GameState::InProgress, Some(GameState::Paused));
 
-        if let Some(mut item) = self.game_timer_for_whole.lock().unwrap().take() {
-            item.set_is_running(false);
-        };
-        if let Some(mut item) = self.game_timer_for_players.lock().unwrap().take() {
-            item.set_is_running(false);
-        };
+        self.set_all_timer_is_running(false);
 
-        *self.game_state.lock().unwrap() = GameState::Paused;
         (self.game_rule.game_pause) (
             self.current_players.clone(),
             self.game_item.clone(),
@@ -205,16 +265,10 @@ impl Game {
     }
 
     pub fn game_resume(&mut self) -> () {
-        assert_eq!(*self.game_state.lock().unwrap(), GameState::Paused, "game state isn't Paused");
+        self.translate_game_state(GameState::Paused, Some(GameState::InProgress));
 
-        if let Some(mut item) = self.game_timer_for_whole.lock().unwrap().take() {
-            item.set_is_running(true);
-        };
-        if let Some(mut item) = self.game_timer_for_players.lock().unwrap().take() {
-            item.set_is_running(true);
-        };
+        self.set_all_timer_is_running(true);
 
-        *self.game_state.lock().unwrap() = GameState::InProgress;
         (self.game_rule.game_resume) (
             self.current_players.clone(),
             self.game_item.clone(),
@@ -223,7 +277,7 @@ impl Game {
     }
 
     pub fn game_progress(&mut self) -> () {
-        assert_eq!(*self.game_state.lock().unwrap(), GameState::InProgress, "game state isn't InProgress");
+        self.translate_game_state(GameState::InProgress, None);
 
         (self.game_rule.game_progress) (
             self.current_players.clone(),
@@ -233,16 +287,10 @@ impl Game {
     }
 
     pub fn game_finish(&mut self) -> () {
-        assert_eq!(*self.game_state.lock().unwrap(), GameState::InProgress, "game state isn't InProgress");
+        self.translate_game_state(GameState::InProgress, Some(GameState::Finished));
 
-        if let Some(mut item) = self.game_timer_for_whole.lock().unwrap().take() {
-            item.set_is_running(false);
-        };
-        if let Some(mut item) = self.game_timer_for_players.lock().unwrap().take() {
-            item.set_is_running(false);
-        };
+        self.set_all_timer_is_running(false);
 
-        *self.game_state.lock().unwrap() = GameState::Finished;
         (self.game_rule.game_finish) (
             self.current_players.clone(),
             self.game_item.clone(),
@@ -251,9 +299,8 @@ impl Game {
     }
 
     pub fn game_wait_start(&mut self) -> () {
-        assert_eq!(*self.game_state.lock().unwrap(), GameState::Finished, "game state isn't Finished");
+        self.translate_game_state(GameState::Finished, Some(GameState::NotStarted));
 
-        *self.game_state.lock().unwrap() = GameState::NotStarted;
         (self.game_rule.game_wait_start) (
             self.current_players.clone(),
             self.game_item.clone(),
@@ -265,17 +312,20 @@ impl Game {
 // 分别实现 Hash、PartialEq、Eq的trait，使dyn GameRule可比较哈希值，从而可以插入HashSet
 impl Hash for Game {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // 哈希参与者
         self.current_players.lock().unwrap().hash(state);
+        // 哈希 game_rule 指针的地址
         std::ptr::hash(self.game_rule as *const _, state);
     }
 }
 
 impl PartialEq for Game {
     fn eq(&self, other: &Self) -> bool {
+        // 比较参与者列表
         *self.current_players.lock().unwrap() == *other.current_players.lock().unwrap() &&
+            // 比较 game_rule 指针的地址，以判断是否是同一个实例
             std::ptr::eq(self.game_rule as *const _, other.game_rule as *const _)
     }
 }
 
 impl Eq for Game {}
-
