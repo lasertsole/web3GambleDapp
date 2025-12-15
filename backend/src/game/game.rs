@@ -1,4 +1,4 @@
-use std::fmt::{write, Debug};
+use std::fmt::Debug;
 use crate::game::game_item::GameItem;
 use std::collections::HashSet;
 use std::hash::Hash;
@@ -187,7 +187,7 @@ impl Game {
     }
 
     fn  translate_game_state(&self, ori_game_state:GameState, tar_game_state: Option<GameState>) -> () {
-        let error_message = "game state isn't ".to_owned() + ori_game_state.to_string().as_str();
+        let error_message:String = "game state isn't ".to_owned() + ori_game_state.to_string().as_str();
 
         match self.game_state.lock() {
             Ok(mut guard) => {
@@ -330,7 +330,7 @@ impl Hash for Game {
 impl PartialEq for Game {
     fn eq(&self, other: &Self) -> bool {
         // 比较参与者列表
-        let self_current_players: MutexGuard<Vec<Arc< crate::game::player::Player >>>;
+        let self_current_players: MutexGuard<Vec<Arc<Player>>>;
         match self.current_players.lock() {
             Ok(guard) => {
                 self_current_players = guard;
@@ -341,7 +341,7 @@ impl PartialEq for Game {
             }
         }
 
-        let other_current_players;
+        let other_current_players: MutexGuard<Vec<Arc<Player>>>;
         match other.current_players.lock() {
             Ok(guard) => {
                 other_current_players = guard;
