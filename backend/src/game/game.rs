@@ -5,7 +5,7 @@ use std::hash::Hash;
 use std::any::Any;
 use std::collections::HashMap;
 use std::fmt;
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, MutexGuard};
 use crate::game::player::Player;
 use crate::game::game_rule::{GameCB, GameRule, PlayersCB};
 use crate::timer::timer::Timer;
@@ -313,7 +313,15 @@ impl Game {
 impl Hash for Game {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // 哈希参与者
-        self.current_players.lock().unwrap().hash(state);
+        match self.current_players.lock() {
+            Ok(guard) => {
+                guard.hash(state);
+            }
+            Err(poisoned) => {
+                print!("The lock is poisoned! Attempting to unpoison (or recover) the data and resume operations.");
+                poisoned.into_inner().hash(state);
+            }
+        }
         // 哈希 game_rule 指针的地址
         std::ptr::hash(self.game_rule as *const _, state);
     }
@@ -322,7 +330,28 @@ impl Hash for Game {
 impl PartialEq for Game {
     fn eq(&self, other: &Self) -> bool {
         // 比较参与者列表
-        *self.current_players.lock().unwrap() == *other.current_players.lock().unwrap() &&
+        let self_current_players: MutexGuard<Vec<Arc< crate::game::player::Player >>>;
+        match self.current_players.lock() {
+            Ok(guard) => {
+                self_current_players = guard;
+            }
+            Err(poisoned) => {
+                print!("The lock is poisoned! Attempting to unpoison (or recover) the data and resume operations.");
+                self_current_players = poisoned.into_inner();
+            }
+        }
+
+        let other_current_players;
+        match other.current_players.lock() {
+            Ok(guard) => {
+                other_current_players = guard;
+            }
+            Err(poisoned) => {
+                print!("The lock is poisoned! Attempting to unpoison (or recover) the data and resume operations.");
+                other_current_players = poisoned.into_inner();
+            }
+        }
+        *self_current_players == *other_current_players &&
             // 比较 game_rule 指针的地址，以判断是否是同一个实例
             std::ptr::eq(self.game_rule as *const _, other.game_rule as *const _)
     }
