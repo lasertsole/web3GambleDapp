@@ -5,15 +5,16 @@ use crate::game::player::Player;
 
 #[derive(Debug)]
 pub struct User{
-    id: i32,
+    id: u32,
     name: String,
-    balance: i32,
+    balance: u32,
     cur_player_map: HashMap<GameProject, Player>,
+    token_count_map: HashMap<u32, GameProject>,
 }
 
 impl User{
-    pub fn new(id: i32, name:String, balance: i32) -> User{
-        User{id, name, balance, cur_player_map: HashMap::new()}
+    pub fn new(id: u32, name:String, balance: u32) -> User{
+        User{id, name, balance, cur_player_map: HashMap::new(), token_count_map: HashMap::new()}
     }
 }
 

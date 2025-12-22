@@ -1,5 +1,6 @@
 use std::hash::Hash;
 use crate::game::game_item::GameItem;
+use crate::game::game_projects::game_project::GameProject;
 use crate::user::user::User;
 
 #[derive(Debug, Clone, Copy, Hash, PartialEq, Eq)]
@@ -11,15 +12,16 @@ pub enum PlayerRole{
 /// 玩家
 #[derive(Debug)]
 pub struct Player {
+    target_game: GameProject,
     player_role: PlayerRole,
     user: &'static User,
     game_item: &'static Vec<&'static dyn GameItem>,
-    chip: u16,// 筹码数量
+    token: u16,// 质押筹码数量
 }
 
 impl Player {
-    pub fn new(player_role: PlayerRole, user: &'static User, game_item: &'static Vec<&'static dyn GameItem>, chip: u16) -> Self{
-        Player {player_role, user, game_item, chip}
+    pub fn new(target_game: GameProject, player_role: PlayerRole, user: &'static User, game_item: &'static Vec<&'static dyn GameItem>, token: u16) -> Self{
+        Player {target_game, player_role, user, game_item, token}
     }
 
     pub fn update_player_role(&mut self, new_role: PlayerRole){
@@ -36,7 +38,7 @@ impl Hash for Player {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         // 哈希参与者
         self.user.hash(state);
-        // 哈希 game_rule 指针的地址
+        // 哈希 game_item 指针的地址
         std::ptr::hash(self.game_item as *const _, state);
     }
 }
@@ -45,7 +47,7 @@ impl PartialEq for Player {
     fn eq(&self, other: &Self) -> bool {
         // 比较参与者列表
         self.user == other.user &&
-            // 比较 game_rule 指针的地址，以判断是否是同一个实例
+            // 比较 game_item 指针的地址，以判断是否是同一个实例
             std::ptr::eq(self.game_item as *const _, other.game_item as *const _)
     }
 }
